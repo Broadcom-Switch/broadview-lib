@@ -33,6 +33,10 @@ class BSTConfigCommand():
                         "get-tracking" : self.handleGetTracking,
                         "get-thresholds" : self.handleGetThresholds,
                         "get-report" : self.handleGetReport,
+                        "get-top-drops" : self.handleGetTopDrops,
+                        "get-top-port-queue-drops" : self.handleGetTopPortQueueDrops,
+                        "get-port-drops" : self.handleGetPortDrops,
+                        "get-port-queue-drops" : self.handleGetPortQueueDrops,
                         "help": self.handleHelp,
                       }
 
@@ -46,6 +50,10 @@ class BSTConfigCommand():
                         "get-tracking" : self.helpGetTracking,
                         "get-thresholds" : self.helpGetThresholds,
                         "get-report" : self.helpGetReport,
+                        "get-top-drops" : self.helpGetTopDrops,
+                        "get-top-port-queue-drops" : self.helpGetTopPortQueueDrops,
+                        "get-port-drops" : self.helpGetPortDrops,
+                        "get-port-queue-drops" : self.helpGetPortQueueDrops,
                       }
 
     def getTimeout(self, args):
@@ -557,6 +565,194 @@ class BSTConfigCommand():
         print "   include_egress_cpu_queue"
         print "   include_egress_rqe_queue"
         print "   include_device"
+
+    def handleGetTopDrops(self, args):
+        usage = False
+        usage, asic, host, port = self.getASICHostPort(args)
+        if not usage:
+            x = GetBSTCongestionDropCounters(host, port)
+            x.setASIC(asic)
+            x.setRequestType("top-drops")
+            for arg in args:
+                if "collection_interval:" in arg:
+                    v = arg.split(":")
+                    if len(v) == 2:
+                        x.setCollectionInterval(int(v[1]))
+                    else:
+                        print "invalid collection_interval argument"
+                elif "count:" in arg:
+                    v = arg.split(":")
+                    if len(v) == 2:
+                        x.setCount(int(v[1]))
+                    else:
+                        print "invalid count argument"
+            status, rep = x.send(self._timeout)
+            if status == 200:
+                ret = json.dumps(x.getJSON())
+                print ret
+            else:
+                print "failure: {}".format(status)
+
+        ret = None
+        return usage, ret
+
+    def helpGetTopDrops(self, name):
+        print name, "[args]"
+        print
+        print "args:"
+        print
+        print "   collection_interval:val" 
+        print "   count:val" 
+
+    def handleGetTopPortQueueDrops(self, args):
+        usage = False
+        usage, asic, host, port = self.getASICHostPort(args)
+        if not usage:
+            x = GetBSTCongestionDropCounters(host, port)
+            x.setASIC(asic)
+            x.setRequestType("top-port-queue-drops")
+            for arg in args:
+                if "collection_interval:" in arg:
+                    v = arg.split(":")
+                    if len(v) == 2:
+                        x.setCollectionInterval(int(v[1]))
+                    else:
+                        print "invalid collection_interval argument"
+                elif "count:" in arg:
+                    v = arg.split(":")
+                    if len(v) == 2:
+                        x.setCount(int(v[1]))
+                    else:
+                        print "invalid count argument"
+                elif "queue_type:" in arg:
+                    v = arg.split(":")
+                    if len(v) == 2:
+                        x.setQueueType(v[1])
+                    else:
+                        print "invalid queue_type argument"
+            status, rep = x.send(self._timeout)
+            if status == 200:
+                ret = json.dumps(x.getJSON())
+                print ret
+            else:
+                print "failure: {}".format(status)
+
+        ret = None
+        return usage, ret
+
+    def helpGetTopPortQueueDrops(self, name):
+        print name, "[args]"
+        print
+        print "args:"
+        print
+        print "   collection_interval:val" 
+        print "   count:val" 
+        print "   queue_type:[all|ucast|mcast]"
+
+    def handleGetPortQueueDrops(self, args):
+        usage = False
+        usage, asic, host, port = self.getASICHostPort(args)
+        if not usage:
+            x = GetBSTCongestionDropCounters(host, port)
+            x.setASIC(asic)
+            x.setRequestType("port-queue-drops")
+            for arg in args:
+                if "collection_interval:" in arg:
+                    v = arg.split(":")
+                    if len(v) == 2:
+                        x.setCollectionInterval(int(v[1]))
+                    else:
+                        print "invalid collection_interval argument"
+                elif "queue_type:" in arg:
+                    v = arg.split(":")
+                    if len(v) == 2:
+                        x.setQueueType(v[1])
+                    else:
+                        print "invalid queue_type argument"
+                elif "port_list:" in arg:
+                    v = arg.split(":")
+                    if len(v) == 2:
+                        v2 = v[1].split(",")
+                        port_list = []
+                        for y in v2:
+                            port_list.append(y)
+                        x.setPortList(port_list)
+                    else:
+                        print "invalid port_list: bad argument count"
+                        usage = True
+                elif "queue_list:" in arg:
+                    v = arg.split(":")
+                    if len(v) == 2:
+                        v2 = v[1].split(",")
+                        queue_list = []
+                        for y in v2:
+                            queue_list.append(y)
+                        x.setQueueList(queue_list)
+                    else:
+                        print "invalid queue_list: bad argument count"
+                        usage = True
+            status, rep = x.send(self._timeout)
+            if status == 200:
+                ret = json.dumps(x.getJSON())
+                print ret
+            else:
+                print "failure: {}".format(status)
+
+        ret = None
+        return usage, ret
+
+    def helpGetPortQueueDrops(self, name):
+        print name, "[args]"
+        print
+        print "args:"
+        print
+        print "   collection_interval:val"
+        print "   queue_type:[all|ucast|mcast]"
+        print "   port_list:port1[,port2][,port3]...[,portn]"
+        print "   queue_list:port1[,port2][,port3]...[,portn]"
+
+    def handleGetPortDrops(self, args):
+        usage = False
+        usage, asic, host, port = self.getASICHostPort(args)
+        if not usage:
+            x = GetBSTCongestionDropCounters(host, port)
+            x.setASIC(asic)
+            x.setRequestType("port-drops")
+            for arg in args:
+                if "collection_interval:" in arg:
+                    v = arg.split(":")
+                    if len(v) == 2:
+                        x.setCollectionInterval(int(v[1]))
+                    else:
+                        print "invalid collection_interval argument"
+                elif "port_list:" in arg:
+                    v = arg.split(":")
+                    if len(v) == 2:
+                        v2 = v[1].split(",")
+                        port_list = []
+                        for y in v2:
+                            port_list.append(y)
+                        x.setPortList(port_list)
+                    else:
+                        print "invalid port_list: bad argument count"
+                        usage = True
+            status, rep = x.send(self._timeout)
+            if status == 200:
+                ret = json.dumps(x.getJSON())
+                print ret
+            else:
+                print "failure: {}".format(status)
+
+        ret = None
+        return usage, ret
+
+    def helpGetPortDrops(self, name):
+        print name, "[args]"
+        print
+        print "args:"
+        print
+        print "   collection_interval:val"
+        print "   port_list:port1[,port2][,port3]...[,portn]"
 
     def isCmd(self, cmd):
         return cmd in self.__cmds

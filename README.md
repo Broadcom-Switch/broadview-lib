@@ -63,8 +63,9 @@ be used to configure BroadView. The other is an API that parses content
 sent by BroadView agents and presents it as Python objects. 
 
 broadview-lib is, like BroadView itself, designed to be extensible. Currently 
-the BroadView BST and PacketTrace components are supported. Future releases 
-will add support for additional BroadView components as they become available.
+the BroadView BST, PacketTrace, and BlackHole detection components are 
+supported. Future releases will add support for additional BroadView components 
+as they become available.
 
 # Tools
 
@@ -207,6 +208,23 @@ This class reports the threshold settings for the various BST realms.
 ### GetBSTReport
 
 This class reports the current buffer statistics for the specified realms.
+
+### GetBSTCongestionDropCounters
+
+This class allows you to retrieve and monitor drop counters. The class
+allows you to obtain one of the following reports:
+
+* top-drops: ports suffering maximum congestion in the switch and the associated drop counters
+* top-port-queue-drops: top port-queue level drop-counters in the switch
+* port-drops: per-port total drop counters
+* port-queue-drops: port-queue level drop-counters
+
+Each report can be assigned a non-zero collection interval which tells the
+agent to generate a periodic report. 
+
+Depending on the report type, you can specify which ports and queues you are
+interested, and in the case of top-drops and top-port-queue-drops, you can
+specify the number of top ports returned.
 
 ## BST Object
 

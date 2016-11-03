@@ -23,11 +23,12 @@ import egress_uc_queue_group
 import ingress_port_priority_group
 import ingress_port_service_pool
 import ingress_service_pool
+import congestion_drop_counters
 import time
 import unittest
 
 class ReportTypes:
-    Report, Trigger, Threshold = range(3)
+    Report, Trigger, Threshold, CongestionDropCounters = range(4)
 
 class BSTParser():
     def __init__(self):
@@ -43,6 +44,10 @@ class BSTParser():
         self.__egress_service_pool = []
         self.__egress_uc_queue = []
         self.__egress_uc_queue_group = []
+        self.__congestion_top_drops = []
+        self.__congestion_top_port_queue_drops = []
+        self.__congestion_port_drops = []
+        self.__congestion_port_queue_drops = []
 
         self.__handlers = {
             "device": self.handleDeviceRealm,
@@ -55,7 +60,12 @@ class BSTParser():
             "egress-rqe-queue": self.handleEgressRQEQueueRealm,
             "egress-service-pool": self.handleEgressServicePoolRealm,
             "egress-uc-queue": self.handleEgressUcQueueRealm,
-            "egress-uc-queue-group": self.handleEgressUcQueueGroupRealm }
+            "egress-uc-queue-group": self.handleEgressUcQueueGroupRealm,
+            "top-drops": self.handleCongestionTopDrops,
+            "top-port-queue-drops": self.handleCongestionTopPortQueueDrops,
+            "port-drops": self.handleCongestionPortDrops,
+            "port-queue-drops": self.handleCongestionPortQueueDrops
+        }
 
     def getReportType(self):
         return self.__reportType
@@ -171,11 +181,48 @@ class BSTParser():
     def getEgressUcQueueGroup(self):
         return self.__egress_uc_queue_group 
 
+    def handleCongestionTopDrops(self, data):
+        t = congestion_drop_counters.PortDrops("top-drops")
+        t.parse(data)
+        self.__congestion_top_drops.append(t) 
+
+    def getCongestionTopDrops(self):
+        return self.__congestion_top_drops 
+
+    def handleCongestionTopPortQueueDrops(self, data):
+        t = congestion_drop_counters.PortQueueDrops("top-port-queue-drops")
+        t.parse(data)
+        self.__congestion_top_port_queue_drops.append(t) 
+
+    def getCongestionTopPortQueueDrops(self):
+        return self.__congestion_top_port_queue_drops 
+
+    def handleCongestionPortDrops(self, data):
+        t = congestion_drop_counters.PortDrops("port-drops")
+        t.parse(data)
+        self.__congestion_port_drops.append(t) 
+
+    def getCongestionPortDrops(self):
+        return self.__congestion_port_drops 
+
+    def handleCongestionPortQueueDrops(self, data):
+        t = congestion_drop_counters.PortQueueDrops("port-queue-drops")
+        t.parse(data)
+        self.__congestion_port_queue_drops.append(t) 
+
+    def getCongestionPortQueueDrops(self):
+        return self.__congestion_port_queue_drops 
+
     def dispatchParser(self, report):
         ret = True
-        if report["realm"] in self.__handlers:
+        if "realm" in report and report["realm"] in self.__handlers:
             try:
                 self.__handlers[report["realm"]](report["data"])
+            except:
+                ret = False
+        elif "report-type" in report and report["report-type"] in self.__handlers:
+            try:
+                self.__handlers[report["report-type"]](report["data"])
             except:
                 ret = False
         else:
@@ -191,6 +238,8 @@ class BSTParser():
                 self.__reportType = ReportTypes.Trigger
             elif data["method"] == "get-bst-thresholds":
                 self.__reportType = ReportTypes.Threshold
+            elif data["method"] == "get-bst-congestion-drop-counters":
+                self.__reportType = ReportTypes.CongestionDropCounters
             else:
                 ret = False 
 
@@ -224,7 +273,8 @@ class BSTParser():
         if ret:
             if data["method"] != "get-bst-report" and \
                data["method"] != "trigger-report" and \
-               data["method"] != "get-bst-thresholds":
+               data["method"] != "get-bst-thresholds" and \
+               data["method"] != "get-bst-congestion-drop-counters":
                 ret = False
 
         if ret:
@@ -591,6 +641,375 @@ class TestParser(unittest.TestCase):
             "time-stamp": "2016-02-15 - 00:15:04 "
         }
 
+        self._top_drops = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "top-drops",
+                "data": [{
+                    "port": "2",
+                    "data": 8500
+                    }, {
+                    "port": "8",
+                    "data": 7550
+                    }, {
+                    "port": "6",
+                    "data": 6500
+                    }, {
+                    "port": "1",
+                    "data": 5550
+                    }, {
+                    "port": "7",
+                    "data": 4500
+                    }, {
+                    "port": "10",
+                    "data": 3550
+                    }, {
+                    "port": "20",
+                    "data": 2500
+                    }, {
+                    "port": "19",
+                    "data": 1550
+                    }]
+            }],
+            "id": 1
+        }
+
+        self._top_drops_bad_method = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-runnynose-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "top-drops",
+                "data": [{
+                    "port": "2",
+                    "data": 8500
+                    }, {
+                    "port": "8",
+                    "data": 7550
+                    }, {
+                    "port": "6",
+                    "data": 6500
+                    }, {
+                    "port": "1",
+                    "data": 5550
+                    }, {
+                    "port": "7",
+                    "data": 4500
+                    }, {
+                    "port": "10",
+                    "data": 3550
+                    }, {
+                    "port": "20",
+                    "data": 2500
+                    }, {
+                    "port": "19",
+                    "data": 1550
+                    }]
+            }],
+            "id": 1
+        }
+
+        self._top_drops_missing_report = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "id": 1
+        }
+
+        self._top_drops_unknown_report_type = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "drop-tops",
+                "data": [{
+                    "port": "2",
+                    "data": 8500
+                    }, {
+                    "port": "8",
+                    "data": 7550
+                    }, {
+                    "port": "6",
+                    "data": 6500
+                    }, {
+                    "port": "1",
+                    "data": 5550
+                    }, {
+                    "port": "7",
+                    "data": 4500
+                    }, {
+                    "port": "10",
+                    "data": 3550
+                    }, {
+                    "port": "20",
+                    "data": 2500
+                    }, {
+                    "port": "19",
+                    "data": 1550
+                    }]
+            }],
+            "id": 1
+        }
+
+        self._top_drops_missing_data = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "top-drops"
+            }],
+            "id": 1
+        }
+
+        self._top_drops_empty_data = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "top-drops",
+                "data": []
+            }],
+            "id": 1
+        }
+
+        self._top_drops_data_object = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "top-drops",
+                "data": {
+                    "port": "2",
+                    "data": 8500
+                }
+            }],
+            "id": 1
+        }
+
+        self._port_drops = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "port-drops",
+                "data": [{
+                    "port": "2",
+                    "data": 8500
+                    }, {
+                    "port": "8",
+                    "data": 7550
+                    }, {
+                    "port": "6",
+                    "data": 6500
+                    }, {
+                    "port": "1",
+                    "data": 5550
+                    }, {
+                    "port": "7",
+                    "data": 4500
+                    }, {
+                    "port": "10",
+                    "data": 3550
+                    }, {
+                    "port": "20",
+                    "data": 2500
+                    }, {
+                    "port": "19",
+                    "data": 1550
+                    }]
+            }],
+            "id": 1
+        }
+
+        self._port_queue_drops_bad_method = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-plop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "top-port-queue-drops",
+                "data": [
+                    {
+                        "port": "1",
+                        "queue-type": "ucast",
+                        "data": [[1,8500],[2,8400], [3,156000]]
+                    }, {
+                        "port": "1",
+                        "queue-type": "mcast",
+                        "data": [[1,600],[2,400], [3,1000]]
+                    }, {
+                        "port": "2",
+                        "queue-type": "ucast",
+                        "data": [[1,500],[2,800], [3,56000]]
+                    }, {
+                        "port": "2",
+                        "queue-type": "mcast",
+                        "data": [[1,2600],[2,3400], [3,21000]]
+                    }]
+            }],
+            "id": 1
+        }
+
+        self._port_queue_drops_missing_report = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "id": 1
+        }
+
+        self._port_queue_drops_unknown_report_type = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "no-such-report-type",
+                "data": [
+                    {
+                        "port": "1",
+                        "queue-type": "ucast",
+                        "data": [[1,8500],[2,8400], [3,156000]]
+                    }, {
+                        "port": "1",
+                        "queue-type": "mcast",
+                        "data": [[1,600],[2,400], [3,1000]]
+                    }, {
+                        "port": "2",
+                        "queue-type": "ucast",
+                        "data": [[1,500],[2,800], [3,56000]]
+                    }, {
+                        "port": "2",
+                        "queue-type": "mcast",
+                        "data": [[1,2600],[2,3400], [3,21000]]
+                    }]
+            }],
+            "id": 1
+        }
+
+        self._port_queue_drops_missing_data = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "top-port-queue-drops"
+            }],
+            "id": 1
+        }
+
+        self._port_queue_drops_empty_data = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "top-port-queue-drops",
+                "data": []
+            }],
+            "id": 1
+        }
+
+        self._port_queue_drops_data_object = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "top-port-queue-drops",
+                "data": 
+                    {
+                        "port": "1",
+                        "queue-type": "ucast",
+                        "data": [[1,8500],[2,8400], [3,156000]]
+                    }
+            }],
+            "id": 1
+        }
+
+        self._top_port_queue_drops = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "top-port-queue-drops",
+                "data": [
+                    {
+                        "port": "1",
+                        "queue-type": "ucast",
+                        "data": [[1,8500],[2,8400], [3,156000]]
+                    }, {
+                        "port": "1",
+                        "queue-type": "mcast",
+                        "data": [[1,600],[2,400], [3,1000]]
+                    }, {
+                        "port": "2",
+                        "queue-type": "ucast",
+                        "data": [[1,500],[2,800], [3,56000]]
+                    }, {
+                        "port": "2",
+                        "queue-type": "mcast",
+                        "data": [[1,2600],[2,3400], [3,21000]]
+                    }]
+            }],
+            "id": 1
+        }
+
+        self._port_queue_drops = {
+            "jsonrpc": "2.0",
+            "method": "get-bst-congestion-drop-counters",
+            "asic-id": "1",
+            "version": "3",
+            "time-stamp": "2016-1-1 - 00:15:04 ",
+            "report": [{
+                "report-type": "port-queue-drops",
+                "data": [
+                    {
+                        "port": "1",
+                        "queue-type": "ucast",
+                        "data": [[1,8500],[2,8400], [3,156000]]
+                    }, {
+                        "port": "1",
+                        "queue-type": "mcast",
+                        "data": [[1,600],[2,400], [3,1000]]
+                    }, {
+                        "port": "2",
+                        "queue-type": "ucast",
+                        "data": [[1,500],[2,800], [3,56000]]
+                    }, {
+                        "port": "2",
+                        "queue-type": "mcast",
+                        "data": [[1,2600],[2,3400], [3,21000]]
+                    }]
+            }],
+            "id": 1
+        }
 
     def test_unknown_method_bst(self):
         rep = BSTParser()
@@ -1482,6 +1901,470 @@ class TestParser(unittest.TestCase):
 
         self.assertEqual(n.getQueueGroup(), 6)
         self.assertEqual(n.getUcBufferCount(), 2222)
+
+    def test_topDropsBadMethod(self):
+        rep = BSTParser()
+        ret = rep.process(self._top_drops_bad_method)
+        self.assertEqual(ret, False)
+
+    def test_topDropsMissingReport(self):
+        rep = BSTParser()
+        ret = rep.process(self._top_drops_missing_report)
+        self.assertEqual(ret, False)
+
+    def test_topDropsUnknownReportType(self):
+        rep = BSTParser()
+        ret = rep.process(self._top_drops_unknown_report_type)
+        self.assertEqual(ret, False)
+
+    def test_topDropsMissingData(self):
+        rep = BSTParser()
+        ret = rep.process(self._top_drops_missing_data)
+        self.assertEqual(ret, False)
+
+    def test_topDropsEmptyData(self):
+        rep = BSTParser()
+        ret = rep.process(self._top_drops_empty_data)
+        self.assertEqual(ret, True)
+
+    def test_topDropsDataObject(self):
+        rep = BSTParser()
+        ret = rep.process(self._top_drops_data_object)
+        self.assertEqual(ret, False)
+
+    def test_topDrops(self):
+        rep = BSTParser()
+        ret = rep.process(self._top_drops)
+        self.assertEqual(ret, True)
+        val = rep.getReportType()
+        self.assertEqual(val, ReportTypes.CongestionDropCounters)
+
+        it = iter(rep.getCongestionTopDrops()[0])
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getCount(), 8500)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "8")
+        self.assertEqual(n.getCount(), 7550)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "6")
+        self.assertEqual(n.getCount(), 6500)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getCount(), 5550)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "7")
+        self.assertEqual(n.getCount(), 4500)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "10")
+        self.assertEqual(n.getCount(), 3550)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "20")
+        self.assertEqual(n.getCount(), 2500)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "19")
+        self.assertEqual(n.getCount(), 1550)
+
+    def test_portDrops(self):
+        rep = BSTParser()
+        ret = rep.process(self._port_drops)
+        self.assertEqual(ret, True)
+        val = rep.getReportType()
+        self.assertEqual(val, ReportTypes.CongestionDropCounters)
+
+        it = iter(rep.getCongestionPortDrops()[0])
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getCount(), 8500)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "8")
+        self.assertEqual(n.getCount(), 7550)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "6")
+        self.assertEqual(n.getCount(), 6500)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getCount(), 5550)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "7")
+        self.assertEqual(n.getCount(), 4500)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "10")
+        self.assertEqual(n.getCount(), 3550)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "20")
+        self.assertEqual(n.getCount(), 2500)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "19")
+        self.assertEqual(n.getCount(), 1550)
+
+    def test_portQueueDropsBadMethod(self):
+        rep = BSTParser()
+        ret = rep.process(self._port_queue_drops_bad_method)
+        self.assertEqual(ret, False)
+
+    def test_portQueueDropsMissingReport(self):
+        rep = BSTParser()
+        ret = rep.process(self._port_queue_drops_missing_report)
+        self.assertEqual(ret, False)
+
+    def test_portQueueDropsUnknownReportType(self):
+        rep = BSTParser()
+        ret = rep.process(self._port_queue_drops_unknown_report_type)
+        self.assertEqual(ret, False)
+
+    def test_portQueueDropsMissingData(self):
+        rep = BSTParser()
+        ret = rep.process(self._port_queue_drops_missing_data)
+        self.assertEqual(ret, False)
+
+    def test_portQueueDropsEmptyData(self):
+        rep = BSTParser()
+        ret = rep.process(self._port_queue_drops_empty_data)
+        self.assertEqual(ret, True)
+
+    def test_portQueueDropsDataObject(self):
+        rep = BSTParser()
+        ret = rep.process(self._port_queue_drops_data_object)
+        self.assertEqual(ret, False)
+
+    def test_topPortQueueDrops(self):
+        rep = BSTParser()
+        ret = rep.process(self._top_port_queue_drops)
+        self.assertEqual(ret, True)
+        val = rep.getReportType()
+        self.assertEqual(val, ReportTypes.CongestionDropCounters)
+
+        it = iter(rep.getCongestionTopPortQueueDrops()[0])
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 8500)
+        self.assertEqual(n.getQueue(), 1)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueue(), 2)
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 8400)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueue(), 3)
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 156000)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueue(), 1)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 600)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueue(), 2)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 400)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueue(), 3)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 1000)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 1)
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 500)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 2)
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 800)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 3)
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 56000)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 1)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 2600)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 2)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 3400)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 3)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 21000)
+
+    def test_portQueueDrops(self):
+        rep = BSTParser()
+        ret = rep.process(self._port_queue_drops)
+        self.assertEqual(ret, True)
+        val = rep.getReportType()
+        self.assertEqual(val, ReportTypes.CongestionDropCounters)
+
+        it = iter(rep.getCongestionPortQueueDrops()[0])
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 8500)
+        self.assertEqual(n.getQueue(), 1)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueue(), 2)
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 8400)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueue(), 3)
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 156000)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueue(), 1)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 600)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueue(), 2)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 400)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "1")
+        self.assertEqual(n.getQueue(), 3)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 1000)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 1)
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 500)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 2)
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 800)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 3)
+        self.assertEqual(n.getQueueType(), "ucast")
+        self.assertEqual(n.getCount(), 56000)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 1)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 2600)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 2)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 3400)
+
+        try:
+            n = next(it)
+        except:
+            self.assertEqual(False, True)
+
+        self.assertEqual(n.getPort(), "2")
+        self.assertEqual(n.getQueue(), 3)
+        self.assertEqual(n.getQueueType(), "mcast")
+        self.assertEqual(n.getCount(), 21000)
 
 if __name__ == "__main__":
     unittest.main()

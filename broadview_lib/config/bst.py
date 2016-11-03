@@ -526,6 +526,107 @@ class GetBSTFeature(AgentAPI):
         ret["method"] = "get-bst-feature"
         return ret
 
+class GetBSTCongestionDropCounters(AgentAPI):
+    def __init__(self, host, port):
+        super(GetBSTCongestionDropCounters, self).__init__()
+        self.setFeature("bst")
+        self.setHttpMethod("POST")
+        self.setHost(host)
+        self.setPort(port)
+        self.__requestType = "top-drops" 
+        self.__collection_interval = 30
+        self.__queueType = "all"
+        self.__portList = "all"
+        self.__queueList = []
+        self.__count = 1
+        self.__asic_id = "1"
+        self.__json = None
+
+    def setRequestType(self, requestType):
+        self.__requestType = requestType
+        
+    def setCollectionInterval(self, val):
+        ciMin = 0
+        ciMax = 3600
+        if val < ciMin or val > ciMax:
+            print("ignoring out of range collection interval: {}. Allowed range [{}, {}]".format(val, ciMin, ciMax))
+        else:
+            self.__collection_interval = val
+
+    def setCount(self, val):
+        countMin = 1
+        countMax = 64
+        if val < countMin or val > countMax:
+            print("ignoring out of range count: {}. Allowed range [{}, {}]".format(val, countMin, countMax))
+        else:
+            self.__count = val
+
+    def setQueueType(self, val):
+        types = ["mcast", "ucast", "all"]
+        if not val in types:
+            print("ignoring invalid queue type: {}. Allowed values are:".format(val))
+            for x in types:
+                print("{}".format(x))
+        else:
+            self.__queueType = val
+
+    def setPortList(self, val):
+        if isinstance(val, list):
+            self.__portList = val
+        elif val == "all":
+            self.__portList = "all"
+        else:
+            print("ignoring invalid port list: {}. Must be a list of port strings, or the value \"all\"".format(val))
+
+    def setQueueList(self, val):
+        if isinstance(val, list):
+            self.__queueList = val
+        else:
+            print("ignoring invalid queue list: {}. Must be a list of integer queues".format(val))
+
+    def getASIC(self):
+        return self.__asic_id
+
+    def setASIC(self, val):
+        self.__asic_id = val
+
+    def getJSON(self):
+        return self.__json
+
+    def send(self, timeout=30):
+        status, json = self._send(self.toDict(), timeout)
+        rep = None
+        if status == 200:
+            self.__json = json["report"]
+            rep = BSTParser()
+            rep.process(json)
+        else:
+            pass
+        return status, rep
+
+    def toDict(self):
+        ret = {}
+        params = {}
+        requestParams = {}
+        ret["asic-id"] = self.__asic_id
+        params["request-type"] = self.__requestType
+        params["collection-interval"] = self.__collection_interval
+        if self.__requestType == "top-drops":
+            requestParams["count"] = self.__count
+        elif self.__requestType == "top-port-queue-drops":
+            requestParams["count"] = self.__count
+            requestParams["queue-type"] = self.__queueType
+        elif self.__requestType == "port-drops":
+            requestParams["port-list"] = self.__portList
+        elif self.__requestType == "port-queue-drops":
+            requestParams["port-list"] = self.__portList
+            requestParams["queue-type"] = self.__queueType
+            requestParams["queue-list"] = self.__queueList
+        params["request-params"] = requestParams
+        ret["params"] = params
+        ret["method"] = "get-bst-congestion-drop-counters"
+        return ret
+
 class GetBSTTracking(AgentAPI):
     def __init__(self, host, port):
         super(GetBSTTracking, self).__init__()
